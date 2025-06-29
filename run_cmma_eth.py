@@ -11,6 +11,7 @@ from market_data import *
 from indicators import *
 
 import my_config
+import ccxt
 
 
 def process_strategie_single(pair, 
@@ -22,7 +23,7 @@ def process_strategie_single(pair,
     
     print("🕒 Début exécution à :", datetime.now())
 
-    exchange.set_leverage(leverage, pair2, params={"marginMode": "isolated"})
+    exchange.set_leverage(my_config.LEVERAGE, pair2, params={"marginMode": "isolated"})
 
     price_cache_btc = fetch_latest_ohlcv_to_deque(pair, exchange, timeframe, maxlen=maxlen, only_close=False)
     price_cache_eth = fetch_latest_ohlcv_to_deque(pair2, exchange, timeframe, maxlen=maxlen, only_close=False)
@@ -30,7 +31,9 @@ def process_strategie_single(pair,
     data_btc = pd.DataFrame(price_cache_btc, columns=["date", "open", "high", "low", "close", "volume"]).set_index("date")
     data_eth = pd.DataFrame(price_cache_eth, columns=["date", "open", "high", "low", "close", "volume"]).set_index("date")
     
-
+    print("📉 Dernier close BTC :", data_btc["close"].iloc[-1])
+    print("📉 Dernier close ETH :", data_eth["close"].iloc[-1])
+    
     diff, sig = get_cmma_signal(data_btc,
                                 data_eth,
                                 lookback=my_config.SMA_LOOKBACK,
@@ -41,17 +44,18 @@ def process_strategie_single(pair,
     print("📈 Intermarket diff :", diff)
     print("📊 Signal :", sig)
     in_position = is_in_position(exchange=exchange, symbol=pair2)
-
+    if in_position == True:
+        print("En position")
     try:
         if not in_position and sig == 1:
-            print("🟢 Entrée LONG")
-            order = exchange.create_market_buy_order(pair2, 0.01, {"marginMode": "isolated"})
-            print("✅ Ordre LONG :", order)
+            print(f"🟢 Entrée LONG à {datetime.now()}")
+            order = exchange.create_market_buy_order(pair2, 1, {"marginMode": "isolated"})
+            # print("✅ Ordre LONG :", order)
 
         elif in_position and sig == -1:
-            print("🔴 Sortie LONG")
-            order = exchange.create_market_sell_order(pair2, 0.01, {"reduceOnly": True, "marginMode": "isolated"})
-            print("✅ Ordre de sortie :", order)
+            print(f"🔴 Sortie LONG à {datetime.now()}")
+            order = exchange.create_market_sell_order(pair2, 1, {"reduceOnly": True, "marginMode": "isolated"})
+            # print("✅ Ordre de sortie :", order)
 
         else:
             print("⏸️ Aucune action nécessaire.")
