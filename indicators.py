@@ -8,11 +8,19 @@ import numpy as np
 
 
 
-def get_cmma_signal( data_btc: pd.DataFrame, data_alt: pd.DataFrame, lookback: int, atr_lookback: int, entry_threshold: float, exit_threshold: float, ema: bool = False,
-    use_zlema: bool = False,
-    use_hma: bool = False,
-    src: bool = False,
-) -> tuple[pd.Series, pd.Series]:
+def get_cmma_signal( 
+        data_btc: pd.DataFrame, 
+        data_alt: pd.DataFrame, 
+        lookback: int, 
+        atr_lookback: int, 
+        entry_threshold: float, 
+        exit_threshold: float, 
+        ema: bool = False,
+        use_zlema: bool = False,
+        use_hma: bool = False,
+        src: bool = False,
+        ema_filter_period: int = 600,
+    ) -> tuple[pd.Series, pd.Series]:
     """
     calcule les cmma pour btc et l'altcoin, puis renvoie :
       - intermarket_diff : Series (alt_cmma - btc_cmma)
@@ -23,9 +31,11 @@ def get_cmma_signal( data_btc: pd.DataFrame, data_alt: pd.DataFrame, lookback: i
     alt_cmma = cmma(data_alt, lookback, atr_lookback, ema=ema, use_zlema=use_zlema, use_hma=use_hma, src=src,)
 
     diff = (alt_cmma - btc_cmma).iloc[-1]
+    ema_filter = data_alt['close'].ewm(span=ema_filter_period, adjust=False).mean().iloc[-1]
+    last_close = data_alt['close'].iloc[-1]
 
-    if diff > entry_threshold: 
-        signal = 1 
+    if diff > entry_threshold and last_close > ema_filter:
+        signal = 1
     elif diff < exit_threshold:
         signal = -1
     else:

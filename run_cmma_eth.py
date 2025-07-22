@@ -12,15 +12,16 @@ from indicators import *
 
 import my_config
 import ccxt
+import json
 
 
-def process_strategie_single(pair, 
-                      exchange, 
-                      timeframe="1m", 
-                      maxlen=1000, 
-                      pair2=None, 
-                      leverage=3):
-    
+def process_strategie_single(pair,
+                      exchange,
+                      timeframe=my_config.TIMEFRAME,
+                      maxlen=1000,
+                      pair2=None,
+                      ):
+
     print("🕒 Début exécution à :", datetime.now())
 
     exchange.set_leverage(my_config.LEVERAGE, pair2, params={"marginMode": "isolated"})
@@ -30,10 +31,10 @@ def process_strategie_single(pair,
 
     data_btc = pd.DataFrame(price_cache_btc, columns=["date", "open", "high", "low", "close", "volume"]).set_index("date")
     data_eth = pd.DataFrame(price_cache_eth, columns=["date", "open", "high", "low", "close", "volume"]).set_index("date")
-    
+
     print("📉 Dernier close BTC :", data_btc["close"].iloc[-1])
     print("📉 Dernier close ETH :", data_eth["close"].iloc[-1])
-    
+
     diff, sig = get_cmma_signal(data_btc,
                                 data_eth,
                                 lookback=my_config.SMA_LOOKBACK,
@@ -50,15 +51,29 @@ def process_strategie_single(pair,
         if not in_position and sig == 1:
             print(f"🟢 Entrée LONG à {datetime.now()}")
             order = exchange.create_market_buy_order(pair2, 1, {"marginMode": "isolated"})
+            orderId = order["info"]["orderId"]
+            orderInformations = bitget.fetch_order(orderId, pair2)
+
+            filename = f"BitgetOrders/order_{orderId}.json"
+            with open(filename, "w") as f:
+                json.dump(orderInformations, f, indent=4)
+
+            # import pdb
+            # pdb.set_trace() 
             # print("✅ Ordre LONG :", order)
 
         elif in_position and sig == -1:
             print(f"🔴 Sortie LONG à {datetime.now()}")
             order = exchange.create_market_sell_order(pair2, 1, {"reduceOnly": True, "marginMode": "isolated"})
-            # print("✅ Ordre de sortie :", order)
 
-        else:
-            print("⏸️ Aucune action nécessaire.")
+            orderId = order["info"]["orderId"]
+            orderInformations = bitget.fetch_order(orderId, pair2)
+
+            filename = f"BitgetOrders/order_{orderId}.json"
+            with open(filename, "w") as f:
+                json.dump(orderInformations, f, indent=4)
+
+
 
     except Exception as e:
         print("❌ Erreur lors du passage d'ordre :", e)
@@ -70,7 +85,7 @@ if __name__ == "__main__":
         'password': PASSWORD,
         'enableRateLimit': True,
         'options': {
-            'defaultType': 'swap',  
+            'defaultType': 'swap',
         }
     })
     bitget.set_sandbox_mode(True)
@@ -78,8 +93,7 @@ if __name__ == "__main__":
     process_strategie_single(
         pair="BTCUSDT",
         exchange=bitget,
-        timeframe="1m",
+        timeframe=my_config.TIMEFRAME,
         maxlen=800,
         pair2="ETHUSDT",
-        leverage=3
     )
